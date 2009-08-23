@@ -6,9 +6,11 @@
 from BeautifulSoup import BeautifulSoup
 import urllib2, pickle, os, sys
 from msettings import subject, mailBody
+from subscriptions import *
 from datetime import datetime
 import pytz, gmail, gtalk
 from abc import ABCMeta
+from optparse import OptionParser
 
 # Headers for spoofing Firefox
 headers = {
@@ -71,6 +73,7 @@ class exchangeReader(object):
             except:
                 self.persist()
                 return True                
+        self.persist()
         if self.RATES and self.lastReadValue:
             return self.RATES != self.lastReadValue
         else:
@@ -134,34 +137,70 @@ class IciciGBPINR(exchangeReader):
 iciciGBPINR = IciciGBPINR()         
 EXCHANGE_TYPES = {iciciGBPINR.KEY : iciciGBPINR}
 
-# EDIT ME
-EMAIL_LIST = {
-             iciciGBPINR.KEY : [''],
-             }
-# EDIT ME
-
 def format(rates):
     """
     Method to format the rates suitable for sending them over email or IM.
     """
     fmt = lambda key, value : str(key) + '     ' + value
     rl = [fmt(k,rates[k]) for k in sorted(rates.keys())]
-    return 'Upto' + '   ' + 'INR\n\n' + '\n'.join(rl)
+    return 'Limit' + '   ' + 'INR\n\n' + '\n'.join(rl)
+
+def parseCommandLine():
+    """
+    Method to parse the command line.
+    """
+    parser = OptionParser()
+    parser.add_option("-l", "--email", dest="override_email",
+                      help="Overridden Email list")
+    parser.add_option("-f", "--force",
+                      action="store_true", dest="force", default=False,
+                      help="Force a run")                     
+    parser.add_option("-n", "--noemail",
+                      action="store_true", dest="noemail", default=False,
+                      help="Dont send emails. Save the planet.")
+    parser.add_option("-i", "--noim",
+                      action="store_true", dest="noim", default=False,
+                      help="Dont send IM messages.")
+
+    return parser.parse_args()
     
+def getSubscriptionList(subscriptions):
+    """
+    Method to parse our subscriptions list and return list of subscriptions
+    matching the frequency. 
+    """
+    dt = datetime.now()
+    y = lambda x : ((x == 0) or (dt.minute % x) == 0)
+    ret = []
+    for subs in subscriptions:
+        if y(subs.get('freq', 60)):
+            ret.append(subs.get('email', None))
+    return ret
+        
 def main():
+    options, args = parseCommandLine()
     global subject, mailBody
     datet = datetime.now()
     tz = pytz.timezone('Europe/London')
     tdate = tz.localize(datet)
     fmt = '%Y-%m-%d %H:%M:%S %Z%z'
     for (type, klass) in EXCHANGE_TYPES.items():
+        if options.force:
+            os.remove(os.path.join(PICKLE_PATH, klass.KEY + '.rates'))
+        
         if klass.hasChanged():
             subject = subject %dict(type=type.replace('_', ' '))
             mailBody = mailBody %dict(date=tdate.strftime(fmt), rate=format(klass.RATES))
-            recipientList = EMAIL_LIST[type]
+            if options.override_email:
+                recipientList = options.override_email.split(',')
+            else:
+                recipientList = getSubscriptionList(SUBSCRIPTION_LIST[type])
+            print "Message will be sent to : ", recipientList
             if recipientList:
-                gmail.sendMail(subject, recipientList, mailBody, None)
-                gtalk.sendMessage(recipientList, mailBody)
+                if not options.noemail:
+                    gmail.sendMail(subject, recipientList, mailBody, None)
+                if not options.noim:
+                    gtalk.sendMessage(recipientList, mailBody)
     
 if __name__ == '__main__':
 	main()

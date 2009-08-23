@@ -35,6 +35,8 @@ def sendMail(subject, recipientList, text, html, *attachmentFilePaths):
     mailServer.ehlo()
     mailServer.login(gmailUser, gmailPassword)
     for recipient in recipientList:
+        if not recipient:
+            continue
         msg['To'] = recipient
         mailServer.sendmail(gmailUser, recipient, msg.as_string())
     mailServer.close()
