@@ -63,7 +63,8 @@ class exchangeReader(object):
         """
         if not self.KEY:
             return False
-        self.readRate()
+        if not self.RATES:
+            self.readRate()
         if not self.lastReadValue:
             try:
                 fp = open(os.path.join(PICKLE_PATH, self.KEY + '.rates'), 'rb')
@@ -164,13 +165,14 @@ def parseCommandLine():
 
     return parser.parse_args()
     
-def getSubscriptionList(subscriptions):
+def getSubscriptionList(subscriptions, klass):
     """
     Method to parse our subscriptions list and return list of subscriptions
     matching the frequency. 
     """
     dt = datetime.now()
-    y = lambda x : ((x == 0) or (dt.minute % x) == 0)
+    changed = klass.hasChanged()
+    y = lambda x : ((x == 0 and changed) or (dt.minute % x) == 0)
     ret = []
     for subs in subscriptions:
         if y(subs.get('freq', 60)):
@@ -186,21 +188,20 @@ def main():
     fmt = '%Y-%m-%d %H:%M:%S %Z%z'
     for (type, klass) in EXCHANGE_TYPES.items():
         if options.force:
-            os.remove(os.path.join(PICKLE_PATH, klass.KEY + '.rates'))
-        
-        if klass.hasChanged():
-            subject = subject %dict(type=type.replace('_', ' '))
-            mailBody = mailBody %dict(date=tdate.strftime(fmt), rate=format(klass.RATES))
-            if options.override_email:
-                recipientList = options.override_email.split(',')
-            else:
-                recipientList = getSubscriptionList(SUBSCRIPTION_LIST[type])
-            print "Message will be sent to : ", recipientList
-            if recipientList:
-                if not options.noemail:
-                    gmail.sendMail(subject, recipientList, mailBody, None)
-                if not options.noim:
-                    gtalk.sendMessage(recipientList, mailBody)
-    
+            os.remove(os.path.join(PICKLE_PATH, klass.KEY + '.rates'))        
+        klass.readRate()
+        subject = subject %dict(type=type.replace('_', ' '))
+        mailBody = mailBody %dict(date=tdate.strftime(fmt), rate=format(klass.RATES))
+        if options.override_email:
+            recipientList = options.override_email.split(',')
+        else:
+            recipientList = getSubscriptionList(SUBSCRIPTION_LIST[type], klass)
+        print "Message will be sent to : ", recipientList
+        if recipientList:
+            if not options.noemail:
+                gmail.sendMail(subject, recipientList, mailBody, None)
+            if not options.noim:
+                gtalk.sendMessage(recipientList, mailBody)
+
 if __name__ == '__main__':
 	main()

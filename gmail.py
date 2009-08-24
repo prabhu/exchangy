@@ -14,34 +14,36 @@ def sendMail(subject, recipientList, text, html, *attachmentFilePaths):
     Method to send email using gmail.
     """
     global gmailUser, gmailPassword
-    msg = MIMEMultipart()
-    msg['From'] = gmailUser    
-    msg['Subject'] = subject
-
-    msgAlternative = MIMEMultipart('alternative')
-    msg.attach(msgAlternative)
-    if text:
-        msgText = MIMEText(text)
-        msgAlternative.attach(msgText)
-    if html:
-        msgText = MIMEText(html, 'html')
-        msgAlternative.attach(msgText)
-
-    for attachmentFilePath in attachmentFilePaths:
-        msg.attach(handleAttachment(attachmentFilePath))
     mailServer = smtplib.SMTP('smtp.gmail.com', 587)
     mailServer.ehlo()
     mailServer.starttls()
     mailServer.ehlo()
     mailServer.login(gmailUser, gmailPassword)
+
     for recipient in recipientList:
         if not recipient:
             continue
-        msg['To'] = recipient
-        mailServer.sendmail(gmailUser, recipient, msg.as_string())
-    mailServer.close()
-    print('Sent email to %s' % recipient)
+    
+        msg = MIMEMultipart()
+        msg['From'] = gmailUser    
+        msg['Subject'] = subject
 
+        msgAlternative = MIMEMultipart('alternative')
+        msg.attach(msgAlternative)
+        if text:
+            msgText = MIMEText(text)
+            msgAlternative.attach(msgText)
+        if html:
+            msgText = MIMEText(html, 'html')
+            msgAlternative.attach(msgText)
+
+        for attachmentFilePath in attachmentFilePaths:
+            msg.attach(handleAttachment(attachmentFilePath))
+        msg['To'] = recipient
+        mailServer.sendmail(gmailUser, [recipient], msg.as_string())
+        print('Sent email to %s' % recipient)
+    mailServer.close()
+    
 def handleAttachment(attachmentFilePath):
     """
     Method to handle attachment
