@@ -34,6 +34,7 @@ class exchangeReader(object):
     RATES = {}
     lastReadValue = {}
     KEY = None
+    FILTER = {}
     
     def __init__(self):
         pass
@@ -53,11 +54,12 @@ class exchangeReader(object):
             
     def readRate(self, **options):
         """
-        Method to read the exchange rate by parsing the url.
+        Method to read the exchange rate by parsing the url. Will be
+        implemented by sub-classes.
         """
         pass
     
-    def hasChanged(self):
+    def hasChanged(self, cachefile):
         """
         Method to identify if the rates have changed.
         """
@@ -67,14 +69,14 @@ class exchangeReader(object):
             self.readRate()
         if not self.lastReadValue:
             try:
-                fp = open(os.path.join(PICKLE_PATH, self.KEY + '.rates'), 'rb')
+                fp = open(cachefile, 'rb')
                 tmp_dict = pickle.load(fp)
                 fp.close()
                 self.lastReadValue = tmp_dict.get(self.KEY, None)
             except:
-                self.persist()
+                self.persist(cachefile)
                 return True                
-        self.persist()
+        self.persist(cachefile)
         if self.RATES and self.lastReadValue:
             return self.RATES != self.lastReadValue
         else:
@@ -100,13 +102,13 @@ class exchangeReader(object):
         """
         pass
 
-    def persist(self):
+    def persist(self, cachefile):
         """
         Method to persist last value.
         """
         if self.KEY and self.RATES:
             tmp_dict = {self.KEY : self.RATES}
-            fp = open(os.path.join(PICKLE_PATH, self.KEY + '.rates'), 'wb')
+            fp = open(cachefile, 'wb')
             data = pickle.dump(tmp_dict, fp)
             fp.close()
                         
@@ -117,6 +119,7 @@ class IciciGBPINR(exchangeReader):
     def __init__(self):
         self.URL = "http://icicibank.co.uk/money_transfers_exchange_rates.html"
         self.KEY = "ICICI_GBP_INR"
+        self.FILTER = {4999 : '200-4999', 9999 : '5000-9999'}
         
     def readRate(self):
         """
@@ -138,13 +141,17 @@ class IciciGBPINR(exchangeReader):
 iciciGBPINR = IciciGBPINR()         
 EXCHANGE_TYPES = {iciciGBPINR.KEY : iciciGBPINR}
 
-def format(rates):
+def format(rates, filter):
     """
     Method to format the rates suitable for sending them over email or IM.
     """
-    fmt = lambda key, value : str(key) + '     ' + value
-    rl = [fmt(k,rates[k]) for k in sorted(rates.keys())]
-    return 'Limit' + '   ' + 'INR\n\n' + '\n'.join(rl)
+    fmt = lambda key, value : "%15s %10s\n" %(str(key), value)
+    rl = [(k, rates[k]) for k in sorted(rates.keys()) if k in filter.keys()]
+    ret = fmt('Range (GBP)', 'INR')    
+    ret += '\n'
+    for row in rl:
+        ret += fmt(filter.get(row[0], row[0]), row[1])
+    return ret
 
 def parseCommandLine():
     """
@@ -165,14 +172,17 @@ def parseCommandLine():
 
     return parser.parse_args()
     
-def getSubscriptionList(subscriptions, klass):
+def getSubscriptionList(subscriptions, klass, currenttime, cachefile):
     """
     Method to parse our subscriptions list and return list of subscriptions
-    matching the frequency. 
+    matching the frequency. It gets the currenttime from main.
     """
-    dt = datetime.now()
-    changed = klass.hasChanged()
-    y = lambda x : ((x == 0 and changed) or (dt.minute % x) == 0)
+    daystart = datetime(currenttime.year, currenttime.month, currenttime.day, 9, 0, 0)
+    delta = currenttime - daystart
+    deltaminutes = (delta.seconds / 60)
+    
+    changed = klass.hasChanged(cachefile)
+    y = lambda x : ((x == 0 and changed) or (deltaminutes % x) == 0)
     ret = []
     for subs in subscriptions:
         if y(subs.get('freq', 60)):
@@ -187,15 +197,16 @@ def main():
     tdate = tz.localize(datet)
     fmt = '%Y-%m-%d %H:%M:%S %Z%z'
     for (type, klass) in EXCHANGE_TYPES.items():
-        if options.force:
-            os.remove(os.path.join(PICKLE_PATH, klass.KEY + '.rates'))        
+        filename = os.path.join(PICKLE_PATH, klass.KEY + '.rates')
+        if options.force and os.path.exists(filename):
+            os.remove(filename)        
         klass.readRate()
         subject = subject %dict(type=type.replace('_', ' '))
-        mailBody = mailBody %dict(date=tdate.strftime(fmt), rate=format(klass.RATES))
+        mailBody = mailBody %dict(date=tdate.strftime(fmt), rate=format(klass.RATES, klass.FILTER))
         if options.override_email:
             recipientList = options.override_email.split(',')
         else:
-            recipientList = getSubscriptionList(SUBSCRIPTION_LIST[type], klass)
+            recipientList = getSubscriptionList(SUBSCRIPTION_LIST[type], klass, datet, filename)
         print "Message will be sent to : ", recipientList
         if recipientList:
             if not options.noemail:

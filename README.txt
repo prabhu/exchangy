@@ -16,7 +16,7 @@ Edit exchangy.py and add email addresses to which the rates should get sent.
 Setup cron to run the code periodically.
 Eg:
 
-*/5 9-18/2 * * 1-5 python <path>/exchangy.py (Run on weekdays from 9:30 - 6:30 for every 5 mins)
+*/5 9-18/2 * * 1-5 python <path>/exchangy.py (Run on weekdays from 9:00 - 6:30 for every 5 mins)
 
 Why cron?
 Because it helps keep the code simple with no threading stuff.
