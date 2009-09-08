@@ -8,7 +8,8 @@ import urllib2, pickle, os, sys
 from msettings import subject, mailBody
 from subscriptions import *
 from datetime import datetime
-import pytz, gmail, gtalk
+import pytz, gmail
+from jabberbot import jabberbot
 from abc import ABCMeta
 from optparse import OptionParser
 
@@ -140,6 +141,7 @@ class IciciGBPINR(exchangeReader):
 
 iciciGBPINR = IciciGBPINR()         
 EXCHANGE_TYPES = {iciciGBPINR.KEY : iciciGBPINR}
+BOTS = [jabberbot()]
 
 def format(rates, filter):
     """
@@ -212,7 +214,8 @@ def main():
             if not options.noemail:
                 gmail.sendMail(subject, recipientList, mailBody, None)
             if not options.noim:
-                gtalk.sendMessage(recipientList, mailBody)
+                for bot in BOTS:
+                    bot.sendMessage(recipientList, mailBody)
 
 if __name__ == '__main__':
 	main()
