@@ -8,7 +8,7 @@ import urllib2, pickle, os, sys
 from msettings import subject, mailBody
 from subscriptions import *
 from datetime import datetime
-import pytz, gmail
+import pytz, emailer
 from jabberbot import jabberbot
 from abc import ABCMeta
 from optparse import OptionParser
@@ -36,6 +36,7 @@ class exchangeReader(object):
     lastReadValue = {}
     KEY = None
     FILTER = {}
+    MIN_RATE = 0
     
     def __init__(self):
         pass
@@ -136,6 +137,7 @@ class IciciGBPINR(exchangeReader):
                 if subdiv:
                     self.RATES[types[i]] = str(subdiv.contents[0])
                     i = i+1
+            self.MIN_RATE = float(self.RATES[types[0]])
             return self.RATES
         return None
 
@@ -185,9 +187,10 @@ def getSubscriptionList(subscriptions, klass, currenttime, cachefile):
     
     changed = klass.hasChanged(cachefile)
     y = lambda x : ((x == 0 and changed) or (deltaminutes % x) == 0)
+    z = lambda rate : (not rate or (klass.MIN_RATE and klass.MIN_RATE >= rate)) 
     ret = []
     for subs in subscriptions:
-        if y(subs.get('freq', 60)):
+        if y(subs.get('freq', 60)) and z(subs.get('min_rate', None)):
             ret.append(subs.get('email', None))
     return ret
         
