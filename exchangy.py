@@ -121,14 +121,14 @@ class IciciGBPINR(exchangeReader):
     def __init__(self):
         self.URL = "http://icicibank.co.uk/money_transfers_exchange_rates.html"
         self.KEY = "ICICI_GBP_INR"
-        self.FILTER = {4999 : '200-4999', 9999 : '5000-9999'}
+        self.FILTER = {7000 : '2,001 - 7,000', 10000 : '7,001 - 10,000'}
         
     def readRate(self):
         """
         Method to read the exchange rate.
         """
         page = self.getPage()
-        types = [200, 4999, 9999, 24999, 49999]
+        types = [2000, 7000, 10000, 25000, 50000]
         i = 0
         if page:
             soup = BeautifulSoup(page)
@@ -155,6 +155,7 @@ def format(rates, filter):
     ret += '\n'
     for row in rl:
         ret += fmt(filter.get(row[0], row[0]), row[1])
+    print ret
     return ret
 
 def parseCommandLine():
@@ -186,7 +187,7 @@ def getSubscriptionList(subscriptions, klass, currenttime, cachefile):
     deltaminutes = (delta.seconds / 60)
     
     changed = klass.hasChanged(cachefile)
-    y = lambda x : ((x == 0 and changed) or (deltaminutes % x) == 0)
+    y = lambda x : (changed and (x == 0 or deltaminutes % x == 0))
     z = lambda rate : (not rate or (klass.MIN_RATE and klass.MIN_RATE >= rate)) 
     ret = []
     for subs in subscriptions:
