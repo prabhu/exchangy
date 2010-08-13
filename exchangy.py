@@ -93,7 +93,7 @@ class exchangeReader(object):
             try:
                 urllib2.urlopen(self.URL)
                 ret = False
-            except URLError, e:
+            except urllib2URLError, e:
                 print e
                 ret = True
         return ret        
@@ -216,7 +216,7 @@ def main():
         print "Message will be sent to : ", recipientList
         if recipientList:
             if not options.noemail:
-                gmail.sendMail(subject, recipientList, mailBody, None)
+                emailer.sendMail(subject, recipientList, mailBody, None)
             if not options.noim:
                 for bot in BOTS:
                     bot.sendMessage(recipientList, mailBody)
